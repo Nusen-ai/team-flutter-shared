@@ -1,0 +1,35 @@
+# Uncomment this line to enable performance tracing
+# enable_trace: true
+
+# Minimum iOS deployment version
+deployment_target: '13.0'
+
+# iOS specific configuration
+ios:
+  # Framework type for Flutter module
+  framework:
+    name: FlutterSharedComponents
+    output: ../ios_private_pods/FlutterSharedComponents.xcframework
+
+  # Xcode workspace settings
+  xcode:
+    # Minimum iOS deployment target
+    deployment_target: '13.0'
+
+# CocoaPods settings for Flutter module
+podspec:
+  # Minimum CocoaPods version
+  min_supported_version: '1.11.0'
+
+# Channel configuration for MethodChannel
+channels:
+  # Native to Flutter channel name
+  native_to_flutter: 'com.shared.components/native_to_flutter'
+  # Flutter to Native channel name
+  flutter_to_native: 'com.shared.components/flutter_to_native'
+
+# Route configuration
+routes:
+  login: '/login'
+  shop: '/shop'
+  survey: '/survey'

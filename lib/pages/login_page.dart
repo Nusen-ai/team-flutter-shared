@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_scanner_plugin/qr_scanner_plugin.dart';
 import '../services/channel_service.dart';
 import '../services/route_service.dart';
+import '../services/navigation_service.dart';
 
 /// 登录页面
 /// 支持用户名密码登录和扫码登录两种方式
@@ -167,6 +168,11 @@ class _LoginPageState extends State<LoginPage> {
         title: const Text('登录'),
         centerTitle: true,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => NavigationService.closeFlutterPage(),
+          tooltip: '返回',
+        ),
         actions: [
           IconButton(
             icon: Icon(_isScanning ? Icons.dialpad : Icons.qr_code_scanner),

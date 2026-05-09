@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:bluetooth_plugin/bluetooth_plugin.dart';
 import '../services/channel_service.dart';
 import '../services/route_service.dart';
+import '../services/navigation_service.dart';
 
 /// 问卷表单页面
 /// 支持填写问卷并通过蓝牙发送数据
@@ -257,6 +258,11 @@ class _SurveyPageState extends State<SurveyPage> {
         title: const Text('问卷调查'),
         centerTitle: true,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => NavigationService.closeFlutterPage(),
+          tooltip: '返回',
+        ),
         actions: [
           IconButton(
             icon: Icon(

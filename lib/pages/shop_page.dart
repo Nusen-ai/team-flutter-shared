@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:device_info_plugin/device_info_plugin.dart';
 import '../services/channel_service.dart';
 import '../services/route_service.dart';
+import '../services/navigation_service.dart';
 
 /// 商城页面
 /// 展示设备信息并支持浏览商品
@@ -147,6 +148,11 @@ class _ShopPageState extends State<ShopPage> {
         title: const Text('商城'),
         centerTitle: true,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => NavigationService.closeFlutterPage(),
+          tooltip: '返回',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),

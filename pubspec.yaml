@@ -11,11 +11,14 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  qr_code_scanner: ^1.0.1
-  flutter_blue_plus: ^1.31.0
-  device_info_plus: ^9.1.0
-  firebase_messaging: ^14.6.5
-  firebase_core: ^2.23.0
+  qr_scanner_plugin:
+    path: ../flutter_plugins/qr_scanner_plugin
+  bluetooth_plugin:
+    path: ../flutter_plugins/bluetooth_plugin
+  push_plugin:
+    path: ../flutter_plugins/push_plugin
+  device_info_plugin:
+    path: ../flutter_plugins/device_info_plugin
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:device_info_plus/device_info_plus.dart';
+import 'package:device_info_plugin/device_info_plugin.dart';
 import '../services/channel_service.dart';
 import '../services/route_service.dart';
 
@@ -13,7 +13,7 @@ class ShopPage extends StatefulWidget {
 }
 
 class _ShopPageState extends State<ShopPage> {
-  DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
+  DeviceInfo? _deviceInfo;
   Map<String, dynamic> _deviceData = {};
   bool _isLoading = true;
   List<Map<String, dynamic>> _products = [];
@@ -21,31 +21,59 @@ class _ShopPageState extends State<ShopPage> {
   @override
   void initState() {
     super.initState();
+    _initPlugin();
     _loadDeviceInfo();
     _loadProducts();
+  }
+
+  Future<void> _initPlugin() async {
+    DeviceInfoPlugin.instance.init();
   }
 
   /// 加载设备信息
   Future<void> _loadDeviceInfo() async {
     try {
-      IosDeviceInfo iosInfo = await _deviceInfo.iosInfo;
+      final deviceInfo = await DeviceInfoPlugin.instance.getDeviceInfo();
 
       setState(() {
+        _deviceInfo = deviceInfo;
         _deviceData = {
-          'name': iosInfo.name,
-          'systemName': iosInfo.systemName,
-          'systemVersion': iosInfo.systemVersion,
-          'model': iosInfo.model,
-          'localizedModel': iosInfo.localizedModel,
-          'identifierForVendor': iosInfo.identifierForVendor,
-          'isPhysicalDevice': iosInfo.isPhysicalDevice,
-          'utsname': {
-            'machine': iosInfo.utsname.machine,
-            'nodename': iosInfo.utsname.nodename,
-            'release': iosInfo.utsname.release,
-            'sysname': iosInfo.utsname.sysname,
-            'version': iosInfo.utsname.version,
-          },
+          'name': deviceInfo.name,
+          'systemName': deviceInfo.systemName,
+          'systemVersion': deviceInfo.systemVersion,
+          'model': deviceInfo.model,
+          'localizedModel': deviceInfo.localizedModel,
+          'identifierForVendor': deviceInfo.identifierForVendor,
+          'isPhysicalDevice': deviceInfo.isPhysicalDevice,
+          'hardwareInfo': deviceInfo.hardwareInfo != null
+              ? {
+                  'cpuType': deviceInfo.hardwareInfo!.cpuType,
+                  'cpuCoreCount': deviceInfo.hardwareInfo!.cpuCoreCount,
+                  'gpuInfo': deviceInfo.hardwareInfo!.gpuInfo,
+                }
+              : null,
+          'screenInfo': deviceInfo.screenInfo != null
+              ? {
+                  'width': deviceInfo.screenInfo!.width,
+                  'height': deviceInfo.screenInfo!.height,
+                  'scale': deviceInfo.screenInfo!.scale,
+                  'isRetina': deviceInfo.screenInfo!.isRetina,
+                }
+              : null,
+          'storageInfo': deviceInfo.storageInfo != null
+              ? {
+                  'totalSpace': deviceInfo.storageInfo!.totalSpaceGB,
+                  'freeSpace': deviceInfo.storageInfo!.freeSpaceGB,
+                  'usedSpace': deviceInfo.storageInfo!.usedSpaceGB,
+                }
+              : null,
+          'memoryInfo': deviceInfo.memoryInfo != null
+              ? {
+                  'totalMemory': deviceInfo.memoryInfo!.totalMemoryGB,
+                  'freeMemory': deviceInfo.memoryInfo!.freeMemoryGB,
+                  'usedMemory': deviceInfo.memoryInfo!.usedMemoryGB,
+                }
+              : null,
         };
         _isLoading = false;
       });
@@ -170,7 +198,7 @@ class _ShopPageState extends State<ShopPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _isLoading ? '加载中...' : _deviceData['name'] ?? '未知设备',
+                      _isLoading ? '加载中...' : _deviceInfo?.name ?? '未知设备',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -178,7 +206,7 @@ class _ShopPageState extends State<ShopPage> {
                       ),
                     ),
                     Text(
-                      _isLoading ? '' : '${_deviceData['model']} - iOS ${_deviceData['systemVersion']}',
+                      _isLoading ? '' : '${_deviceInfo?.model ?? ''} - iOS ${_deviceInfo?.systemVersion ?? ''}',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 14,

@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:bluetooth_plugin/bluetooth_plugin.dart';
 import '../services/channel_service.dart';
 import '../services/route_service.dart';
 
@@ -24,6 +25,7 @@ class _SurveyPageState extends State<SurveyPage> {
   bool _isBluetoothEnabled = false;
   bool _isSendingBluetooth = false;
   BluetoothDevice? _connectedDevice;
+  StreamSubscription? _connectionSubscription;
 
   final List<String> _featureOptions = [
     '用户界面',
@@ -37,29 +39,47 @@ class _SurveyPageState extends State<SurveyPage> {
   @override
   void initState() {
     super.initState();
+    _initBluetooth();
     _checkBluetoothStatus();
     ChannelService.instance.sendPageNavigationToNative('survey');
   }
 
+  Future<void> _initBluetooth() async {
+    BluetoothPlugin.instance.init();
+    _connectionSubscription = BluetoothPlugin.instance.connectionStateStream.listen((state) {
+      if (state == BluetoothConnectionState.connected) {
+        setState(() {
+          _connectedDevice = BluetoothPlugin.instance.connectedDevice;
+        });
+      } else if (state == BluetoothConnectionState.disconnected) {
+        setState(() {
+          _connectedDevice = null;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _connectionSubscription?.cancel();
     _nameController.dispose();
     _emailController.dispose();
     _feedbackController.dispose();
+    BluetoothPlugin.instance.dispose();
     super.dispose();
   }
 
   /// 检查蓝牙状态
   Future<void> _checkBluetoothStatus() async {
     try {
-      final isSupported = await FlutterBluePlus.isSupported;
+      final isSupported = await BluetoothPlugin.instance.isSupported();
       if (!isSupported) {
         setState(() => _isBluetoothEnabled = false);
         return;
       }
 
-      final state = await FlutterBluePlus.adapterState.first;
-      setState(() => _isBluetoothEnabled = state == BluetoothAdapterState.on);
+      final state = await BluetoothPlugin.instance.getAdapterState();
+      setState(() => _isBluetoothEnabled = state == BluetoothAdapterState.poweredOn);
     } catch (e) {
       setState(() => _isBluetoothEnabled = false);
     }
@@ -69,9 +89,9 @@ class _SurveyPageState extends State<SurveyPage> {
   Future<void> _toggleBluetooth() async {
     if (_isBluetoothEnabled) {
       try {
-        await FlutterBluePlus.stopScan();
+        await BluetoothPlugin.instance.stopScan();
         if (_connectedDevice != null) {
-          await _connectedDevice!.disconnect();
+          await BluetoothPlugin.instance.disconnect();
           setState(() {
             _connectedDevice = null;
             _isBluetoothEnabled = false;
@@ -82,7 +102,7 @@ class _SurveyPageState extends State<SurveyPage> {
       }
     } else {
       try {
-        await FlutterBluePlus.turnOn();
+        await BluetoothPlugin.instance.turnOn();
         setState(() => _isBluetoothEnabled = true);
       } catch (e) {
         _showError('打开蓝牙失败，请手动在设置中开启');
@@ -100,25 +120,27 @@ class _SurveyPageState extends State<SurveyPage> {
     setState(() => _isSendingBluetooth = true);
 
     try {
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
+      await BluetoothPlugin.instance.startScan(timeout: 10);
 
       BluetoothDevice? targetDevice;
-      await for (final scanResult in FlutterBluePlus.scanResults) {
-        for (final result in scanResult) {
-          if (result.device.platformName.isNotEmpty) {
-            targetDevice = result.device;
-            break;
-          }
+
+      await for (final scanResult in BluetoothPlugin.instance.scanResultStream) {
+        if (scanResult.device.name.isNotEmpty) {
+          targetDevice = scanResult.device;
+          break;
         }
-        if (targetDevice != null) break;
       }
 
-      await FlutterBluePlus.stopScan();
+      await BluetoothPlugin.instance.stopScan();
 
       if (targetDevice != null) {
-        await targetDevice.connect(timeout: const Duration(seconds: 10));
-        setState(() => _connectedDevice = targetDevice);
-        _showSuccess('已连接到设备: ${targetDevice.platformName}');
+        final success = await BluetoothPlugin.instance.connect(targetDevice.id);
+        if (success) {
+          setState(() => _connectedDevice = targetDevice);
+          _showSuccess('已连接到设备: ${targetDevice.name}');
+        } else {
+          _showError('连接失败');
+        }
       } else {
         _showError('未找到可连接的蓝牙设备');
       }
@@ -139,22 +161,16 @@ class _SurveyPageState extends State<SurveyPage> {
     setState(() => _isSendingBluetooth = true);
 
     try {
-      final services = await _connectedDevice!.discoverServices();
+      final jsonData = data.toString();
+      final bytes = jsonData.codeUnits;
+      final success = await BluetoothPlugin.instance.writeData(bytes);
 
-      for (var service in services) {
-        for (var characteristic in service.characteristics) {
-          if (characteristic.properties.write ||
-              characteristic.properties.writeWithoutResponse) {
-            final jsonData = data.toString();
-            final bytes = jsonData.codeUnits;
-            await characteristic.write(bytes);
-
-            await ChannelService.instance.sendBluetoothDataToNative(jsonData);
-          }
-        }
+      if (success) {
+        await ChannelService.instance.sendBluetoothDataToNative(jsonData);
+        _showSuccess('数据已通过蓝牙发送');
+      } else {
+        _showError('蓝牙发送失败');
       }
-
-      _showSuccess('数据已通过蓝牙发送');
     } catch (e) {
       _showError('蓝牙发送失败: $e');
     } finally {
@@ -312,7 +328,7 @@ class _SurveyPageState extends State<SurveyPage> {
                       Text(
                         _isBluetoothEnabled
                             ? (_connectedDevice != null
-                                ? '已连接: ${_connectedDevice!.platformName}'
+                                ? '已连接: ${_connectedDevice!.name}'
                                 : '已开启，可连接设备')
                             : '已关闭',
                         style: TextStyle(
@@ -356,7 +372,7 @@ class _SurveyPageState extends State<SurveyPage> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        await _connectedDevice?.disconnect();
+                        await BluetoothPlugin.instance.disconnect();
                         setState(() => _connectedDevice = null);
                       },
                       icon: const Icon(Icons.link_off, color: Colors.red),

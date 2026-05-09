@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:qr_scanner_plugin/qr_scanner_plugin.dart';
 import '../services/channel_service.dart';
 import '../services/route_service.dart';
 
@@ -17,13 +18,15 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isScanning = false;
-  QRViewController? _qrController;
+  bool _isFlashOn = false;
+  StreamSubscription? _scanSubscription;
   final GlobalKey _qrKey = GlobalKey(debugLabel: 'QR');
 
   @override
   void initState() {
     super.initState();
     _initChannelService();
+    _initScanner();
   }
 
   void _initChannelService() {
@@ -39,11 +42,16 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  Future<void> _initScanner() async {
+    QrScannerPlugin.instance.init();
+  }
+
   @override
   void dispose() {
+    _scanSubscription?.cancel();
     _usernameController.dispose();
     _passwordController.dispose();
-    _qrController?.dispose();
+    QrScannerPlugin.instance.dispose();
     super.dispose();
   }
 
@@ -77,18 +85,29 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// 扫码登录处理
-  void _onQRViewCreated(QRViewController controller) {
-    _qrController = controller;
-    controller.scannedDataStream.listen((scanData) async {
-      if (scanData.code != null && scanData.code!.isNotEmpty) {
-        await controller.pauseCamera();
-        setState(() => _isScanning = false);
+  /// 开始扫码
+  Future<void> _startScan() async {
+    setState(() => _isScanning = true);
 
-        await ChannelService.instance.sendScanResultToNative(scanData.code!);
+    final hasPermission = await QrScannerPlugin.instance.checkCameraPermission();
+    if (!hasPermission) {
+      final granted = await QrScannerPlugin.instance.requestCameraPermission();
+      if (!granted) {
+        _showError('请授权相机权限');
+        setState(() => _isScanning = false);
+        return;
+      }
+    }
+
+    _scanSubscription?.cancel();
+    _scanSubscription = QrScannerPlugin.instance.scanResultStream.listen((result) async {
+      if (result.success && result.code != null) {
+        await QrScannerPlugin.instance.pauseCamera();
+
+        await ChannelService.instance.sendScanResultToNative(result.code!);
 
         if (mounted) {
-          _showSuccess('扫码成功: ${scanData.code}');
+          _showSuccess('扫码成功: ${result.code}');
           await Future.delayed(const Duration(milliseconds: 500));
           if (mounted) {
             Navigator.pushReplacementNamed(context, RouteService.shopRoute);
@@ -98,14 +117,27 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  /// 停止扫码
+  void _stopScan() {
+    _scanSubscription?.cancel();
+    QrScannerPlugin.instance.pauseCamera();
+    setState(() => _isScanning = false);
+  }
+
+  /// 切换闪光灯
+  Future<void> _toggleFlash() async {
+    final isOn = await QrScannerPlugin.instance.toggleFlashlight();
+    setState(() => _isFlashOn = isOn);
+  }
+
   /// 切换到扫码模式
   void _switchToScanMode() {
-    setState(() => _isScanning = true);
+    _startScan();
   }
 
   /// 切换到账号密码模式
   void _switchToAccountMode() {
-    setState(() => _isScanning = false);
+    _stopScan();
   }
 
   void _showError(String message) {
@@ -155,15 +187,36 @@ class _LoginPageState extends State<LoginPage> {
           flex: 3,
           child: Stack(
             children: [
-              QRView(
+              Container(
                 key: _qrKey,
-                onQRViewCreated: _onQRViewCreated,
-                overlay: QrScannerOverlayShape(
-                  borderColor: Colors.blue,
-                  borderRadius: 12,
-                  borderLength: 30,
-                  borderWidth: 10,
-                  cutOutSize: 280,
+                color: Colors.black,
+                child: Center(
+                  child: Container(
+                    width: 280,
+                    height: 280,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.blue, width: 3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.qr_code_scanner,
+                          size: 64,
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          '将二维码放入框内',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               Positioned(
@@ -191,11 +244,9 @@ class _LoginPageState extends State<LoginPage> {
           flex: 1,
           child: Center(
             child: ElevatedButton.icon(
-              onPressed: () {
-                _qrController?.toggleFlash();
-              },
-              icon: const Icon(Icons.flash_on),
-              label: const Text('打开闪光灯'),
+              onPressed: _toggleFlash,
+              icon: Icon(_isFlashOn ? Icons.flash_off : Icons.flash_on),
+              label: Text(_isFlashOn ? '关闭闪光灯' : '打开闪光灯'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               ),
